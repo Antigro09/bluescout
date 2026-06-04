@@ -1,0 +1,19 @@
+{
+  "name": "BlueScout · FRC 1086",
+  "short_name": "BlueScout",
+  "description": "Scouting & strategy for FRC 1086 Blue Cheese — 2026 REBUILT.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070b16",
+  "theme_color": "#070b16",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

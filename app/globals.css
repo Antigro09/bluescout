@@ -1,26 +1,154 @@
 @import "tailwindcss";
 
+/* next-themes uses a `.dark` class on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---- Light theme (blue + yellow) ---- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --radius: 0.625rem;
+
+  --background: #f6f8fc;
+  --foreground: #0a0e1a;
+
+  --card: #ffffff;
+  --card-foreground: #0a0e1a;
+
+  --popover: #ffffff;
+  --popover-foreground: #0a0e1a;
+
+  /* Team blue */
+  --primary: #1d4ed8;
+  --primary-foreground: #ffffff;
+
+  /* Team yellow */
+  --secondary: #facc15;
+  --secondary-foreground: #1e293b;
+
+  --accent: #fde047;
+  --accent-foreground: #1e293b;
+
+  --muted: #eef2f7;
+  --muted-foreground: #5b6678;
+
+  --border: #dbe3ef;
+  --input: #dbe3ef;
+  --ring: #1d4ed8;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --success: #16a34a;
+  --warning: #d97706;
+
+  /* Scouting phase accents */
+  --auto: #f59e0b;
+  --teleop: #2563eb;
+  --endgame: #7c3aed;
 }
 
+/* ---- Dark theme (default) ---- */
+.dark {
+  --background: #070b16;
+  --foreground: #e8edf7;
+
+  --card: #0f1525;
+  --card-foreground: #e8edf7;
+
+  --popover: #0f1525;
+  --popover-foreground: #e8edf7;
+
+  --primary: #3b82f6;
+  --primary-foreground: #06122b;
+
+  --secondary: #facc15;
+  --secondary-foreground: #1a1407;
+
+  --accent: #1e2940;
+  --accent-foreground: #e8edf7;
+
+  --muted: #16203a;
+  --muted-foreground: #93a1ba;
+
+  --border: #1e2940;
+  --input: #243150;
+  --ring: #3b82f6;
+
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --success: #22c55e;
+  --warning: #f59e0b;
+
+  --auto: #f59e0b;
+  --teleop: #3b82f6;
+  --endgame: #a78bfa;
+}
+
+/* Expose CSS variables as Tailwind utilities (bg-primary, text-muted-foreground, …) */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-auto: var(--auto);
+  --color-teleop: var(--teleop);
+  --color-endgame: var(--endgame);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--border);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle brand gradient used on marketing/auth surfaces. */
+.bg-brand-gradient {
+  background-image: radial-gradient(
+      60rem 60rem at 110% -10%,
+      color-mix(in oklab, var(--secondary) 22%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      55rem 55rem at -10% 110%,
+      color-mix(in oklab, var(--primary) 30%, transparent),
+      transparent 55%
+    );
+}
+
+/* Hide number input spinners for cleaner counters. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }

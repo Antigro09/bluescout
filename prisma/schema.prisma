@@ -1,0 +1,571 @@
+// BlueScout 1086 — data model for FRC 2026 REBUILT scouting + strategy
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  SCOUT_LEAD
+  SCOUTER
+  STRATEGIST
+  VIEWER
+}
+
+enum AllianceColor {
+  RED
+  BLUE
+}
+
+enum AssignmentStatus {
+  PENDING
+  SUBMITTED
+  MISSING
+  EXCUSED
+}
+
+enum CompLevel {
+  QM // qualification
+  EF // eighth final
+  QF // quarterfinal
+  SF // semifinal
+  F // final
+}
+
+enum StartPosition {
+  LEFT
+  CENTER
+  RIGHT
+}
+
+// REBUILT Tower climb levels
+enum ClimbLevel {
+  NONE
+  L1
+  L2
+  L3
+}
+
+enum DefensePlayed {
+  NONE
+  SOME
+  HEAVY
+}
+
+enum CardStatus {
+  NONE
+  YELLOW
+  RED
+}
+
+enum ReliabilityEvent {
+  TIPPED
+  DISABLED
+  BROKE_DOWN
+  LOST_COMMS
+  BROWNOUT
+  STUCK
+}
+
+enum DrivetrainType {
+  SWERVE
+  TANK
+  MECANUM
+  OTHER
+}
+
+enum PicklistKind {
+  FIRST_PICK
+  SECOND_PICK
+  OVERALL
+  CUSTOM
+}
+
+enum ShareScope {
+  DASHBOARD
+  PICKLIST
+  TEAM
+}
+
+enum SyncSource {
+  TBA
+  STATBOTICS
+}
+
+// ---------------------------------------------------------------------------
+// Users & sessions (custom credentials auth)
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(SCOUTER)
+  approved     Boolean  @default(false)
+  teamNumber   Int      @default(1086)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions           Session[]
+  assignments        ScoutAssignment[]  @relation("AssignedScouter")
+  assignmentsCreated ScoutAssignment[]  @relation("AssignmentCreator")
+  matchReports       MatchScoutReport[]
+  pitReports         PitScoutReport[]
+  superNotes         SuperScoutNote[]
+  picklistComments   PicklistComment[]
+  accuracy           ScoutAccuracy[]
+  auditLogs          AuditLog[]
+
+  @@index([role])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  userAgent String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// FRC data (synced from The Blue Alliance / Statbotics)
+// ---------------------------------------------------------------------------
+
+model Event {
+  id        String    @id @default(cuid())
+  key       String    @unique // e.g. 2026wabon
+  name      String
+  shortName String?
+  year      Int
+  weekNum   Int?
+  city      String?
+  stateProv String?
+  country   String?
+  startDate DateTime?
+  endDate   DateTime?
+  isActive  Boolean   @default(false) // currently-scouted event
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  matches      Match[]
+  teamEntries  EventTeam[]
+  assignments  ScoutAssignment[]
+  picklists    Picklist[]
+  pitReports   PitScoutReport[]
+  superNotes   SuperScoutNote[]
+  matchReports MatchScoutReport[]
+
+  @@index([year])
+}
+
+model Team {
+  teamNumber Int      @id
+  key        String   @unique // frcXXXX
+  nickname   String?
+  name       String?
+  city       String?
+  stateProv  String?
+  country    String?
+  rookieYear Int?
+  website    String?
+  updatedAt  DateTime @updatedAt
+
+  eventEntries    EventTeam[]
+  matchTeams      MatchTeam[]
+  matchReports    MatchScoutReport[]
+  pitReports      PitScoutReport[]
+  superNotes      SuperScoutNote[]
+  picklistEntries PicklistEntry[]
+  doNotPick       DoNotPickEntry[]
+  accuracy        ScoutAccuracy[]
+}
+
+// Attendance + cached TBA ranking/OPR and Statbotics EPA per (event, team)
+model EventTeam {
+  id         String @id @default(cuid())
+  eventId    String
+  event      Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  teamNumber Int
+  team       Team   @relation(fields: [teamNumber], references: [teamNumber])
+
+  // TBA ranking & component metrics
+  rank         Int?
+  wins         Int?
+  losses       Int?
+  ties         Int?
+  rankingScore Float?
+  opr          Float?
+  dpr          Float?
+  ccwm         Float?
+
+  // Statbotics EPA breakdown
+  epaTotal    Float?
+  epaAuto     Float?
+  epaTeleop   Float?
+  epaEndgame  Float?
+  epaUnitless Float?
+  winrate     Float?
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, teamNumber])
+  @@index([teamNumber])
+}
+
+model Match {
+  id            String    @id @default(cuid())
+  key           String    @unique // 2026wabon_qm1
+  eventId       String
+  event         Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  compLevel     CompLevel
+  setNumber     Int       @default(1)
+  matchNumber   Int
+  scheduledTime DateTime?
+  predictedTime DateTime?
+  actualTime    DateTime?
+
+  // results (populated from TBA after the match)
+  redScore        Int?
+  blueScore       Int?
+  winningAlliance String?
+  redBreakdown    Json?
+  blueBreakdown   Json?
+  completed       Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teams       MatchTeam[]
+  assignments ScoutAssignment[]
+  reports     MatchScoutReport[]
+
+  @@index([eventId, compLevel, matchNumber])
+}
+
+model MatchTeam {
+  id         String        @id @default(cuid())
+  matchId    String
+  match      Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  teamNumber Int
+  team       Team          @relation(fields: [teamNumber], references: [teamNumber])
+  alliance   AllianceColor
+  position   Int // driver station 1-3
+
+  assignments ScoutAssignment[]
+  reports     MatchScoutReport[]
+
+  @@unique([matchId, teamNumber])
+  @@index([teamNumber])
+}
+
+// ---------------------------------------------------------------------------
+// Scouting assignments (set by scout lead)
+// ---------------------------------------------------------------------------
+
+model ScoutAssignment {
+  id           String           @id @default(cuid())
+  eventId      String
+  event        Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  matchId      String
+  match        Match            @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  matchTeamId  String
+  matchTeam    MatchTeam        @relation(fields: [matchTeamId], references: [id], onDelete: Cascade)
+  scouterId    String
+  scouter      User             @relation("AssignedScouter", fields: [scouterId], references: [id], onDelete: Cascade)
+  assignedById String?
+  assignedBy   User?            @relation("AssignmentCreator", fields: [assignedById], references: [id])
+  status       AssignmentStatus @default(PENDING)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  report MatchScoutReport?
+
+  @@unique([matchTeamId, scouterId])
+  @@index([scouterId, status])
+  @@index([eventId])
+}
+
+// ---------------------------------------------------------------------------
+// Match scouting report (REBUILT fields)
+// ---------------------------------------------------------------------------
+
+model MatchScoutReport {
+  id          String  @id @default(cuid())
+  clientUuid  String  @unique // idempotency key for offline/QR dedup
+  eventId     String
+  event       Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  matchId     String
+  match       Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  matchTeamId String
+  matchTeam   MatchTeam @relation(fields: [matchTeamId], references: [id], onDelete: Cascade)
+  teamNumber  Int
+  team        Team    @relation(fields: [teamNumber], references: [teamNumber])
+  scouterId   String?
+  scouter     User?   @relation(fields: [scouterId], references: [id])
+
+  assignmentId String?          @unique
+  assignment   ScoutAssignment? @relation(fields: [assignmentId], references: [id])
+
+  // pre-match
+  startPosition StartPosition?
+  noShow        Boolean        @default(false)
+
+  // autonomous (20s)
+  autoLeave   Boolean @default(false)
+  autoFuel    Int     @default(0)
+  autoClimbL1 Boolean @default(false)
+
+  // teleop
+  teleopFuel Int @default(0)
+
+  // endgame
+  endgameClimb ClimbLevel @default(NONE)
+  climbFailed  Boolean    @default(false)
+
+  // qualitative
+  defensePlayed DefensePlayed      @default(NONE)
+  defenseRating Int? // 1-5
+  driverSkill   Int? // 1-5
+  reliability   ReliabilityEvent[]
+  card          CardStatus         @default(NONE)
+  notes         String?
+
+  // metadata
+  source    String   @default("online") // online | qr | sync
+  deviceId  String?
+  scoutedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@index([teamNumber])
+  @@index([eventId])
+  @@index([matchId])
+}
+
+// ---------------------------------------------------------------------------
+// Pit scouting + photos
+// ---------------------------------------------------------------------------
+
+model PitScoutReport {
+  id         String  @id @default(cuid())
+  clientUuid String  @unique
+  eventId    String
+  event      Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  teamNumber Int
+  team       Team    @relation(fields: [teamNumber], references: [teamNumber])
+  scouterId  String?
+  scouter    User?   @relation(fields: [scouterId], references: [id])
+
+  drivetrain       DrivetrainType?
+  weightLbs        Float?
+  widthIn          Float?
+  lengthIn         Float?
+  heightIn         Float?
+  motorCount       Int?
+  scoringMechanism String?
+  maxFuelCapacity  Int?
+  climbLevels      ClimbLevel[]
+  autoDescription  String?
+  autoMaxFuel      Int?
+  language         String?
+  hasVision        Boolean         @default(false)
+  notes            String?
+
+  photos    RobotPhoto[]
+  scoutedAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([eventId, teamNumber])
+}
+
+model RobotPhoto {
+  id          String         @id @default(cuid())
+  pitReportId String
+  pitReport   PitScoutReport @relation(fields: [pitReportId], references: [id], onDelete: Cascade)
+  url         String
+  caption     String?
+  createdAt   DateTime       @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Super-scouting / qualitative notes (AI-summarizable)
+// ---------------------------------------------------------------------------
+
+model SuperScoutNote {
+  id         String   @id @default(cuid())
+  clientUuid String   @unique
+  eventId    String
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  teamNumber Int
+  team       Team     @relation(fields: [teamNumber], references: [teamNumber])
+  matchKey   String?
+  authorId   String?
+  author     User?    @relation(fields: [authorId], references: [id])
+  content    String
+  aiSummary  String?
+  tags       String[]
+  scoutedAt  DateTime @default(now())
+
+  @@index([eventId, teamNumber])
+}
+
+// ---------------------------------------------------------------------------
+// Collaborative picklists
+// ---------------------------------------------------------------------------
+
+model Picklist {
+  id          String       @id @default(cuid())
+  eventId     String
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  kind        PicklistKind @default(OVERALL)
+  locked      Boolean      @default(false)
+  createdById String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  tiers     PicklistTier[]
+  entries   PicklistEntry[]
+  doNotPick DoNotPickEntry[]
+  comments  PicklistComment[]
+
+  @@index([eventId])
+}
+
+model PicklistTier {
+  id         String          @id @default(cuid())
+  picklistId String
+  picklist   Picklist        @relation(fields: [picklistId], references: [id], onDelete: Cascade)
+  label      String
+  color      String?
+  order      Int
+  entries    PicklistEntry[]
+}
+
+model PicklistEntry {
+  id         String        @id @default(cuid())
+  picklistId String
+  picklist   Picklist      @relation(fields: [picklistId], references: [id], onDelete: Cascade)
+  tierId     String?
+  tier       PicklistTier? @relation(fields: [tierId], references: [id])
+  teamNumber Int
+  team       Team          @relation(fields: [teamNumber], references: [teamNumber])
+  order      Int
+  note       String?
+  tags       String[]
+  picked     Boolean       @default(false) // taken during alliance selection
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([picklistId, teamNumber])
+  @@index([picklistId, order])
+}
+
+model DoNotPickEntry {
+  id         String   @id @default(cuid())
+  picklistId String
+  picklist   Picklist @relation(fields: [picklistId], references: [id], onDelete: Cascade)
+  teamNumber Int
+  team       Team     @relation(fields: [teamNumber], references: [teamNumber])
+  reason     String?
+
+  @@unique([picklistId, teamNumber])
+}
+
+model PicklistComment {
+  id         String   @id @default(cuid())
+  picklistId String
+  picklist   Picklist @relation(fields: [picklistId], references: [id], onDelete: Cascade)
+  authorId   String?
+  author     User?    @relation(fields: [authorId], references: [id])
+  teamNumber Int?
+  content    String
+  createdAt  DateTime @default(now())
+
+  @@index([picklistId])
+}
+
+// ---------------------------------------------------------------------------
+// QR sync, scout accuracy, share links, audit, cache, settings
+// ---------------------------------------------------------------------------
+
+model QrSyncBatch {
+  id           String   @id @default(cuid())
+  receivedById String?
+  reportCount  Int
+  source       String   @default("qr")
+  createdAt    DateTime @default(now())
+}
+
+model ScoutAccuracy {
+  id            String   @id @default(cuid())
+  scouterId     String
+  scouter       User     @relation(fields: [scouterId], references: [id], onDelete: Cascade)
+  teamNumber    Int?
+  team          Team?    @relation(fields: [teamNumber], references: [teamNumber])
+  eventId       String?
+  reportsCount  Int      @default(0)
+  avgFuelDelta  Float?
+  climbAccuracy Float?
+  computedAt    DateTime @default(now())
+
+  @@index([scouterId])
+}
+
+model ShareLink {
+  id          String     @id @default(cuid())
+  token       String     @unique
+  scope       ShareScope
+  eventId     String?
+  picklistId  String?
+  teamNumber  Int?
+  label       String?
+  expiresAt   DateTime?
+  createdById String?
+  createdAt   DateTime   @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id])
+  action    String
+  entity    String?
+  entityId  String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+}
+
+model ApiCache {
+  id        String     @id @default(cuid())
+  source    SyncSource
+  cacheKey  String     @unique
+  payload   Json
+  etag      String?
+  fetchedAt DateTime   @default(now())
+  expiresAt DateTime?
+}
+
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

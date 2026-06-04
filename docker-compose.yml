@@ -1,0 +1,52 @@
+# BlueScout 1086 — self-hosting stack.
+#
+# Local dev / all-in-one: `docker compose up` starts Postgres, Redis, and the app.
+# Production with your team's REMOTE Postgres: remove the `db` service and set
+# DATABASE_URL on the `app` service to your remote connection string.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bluescout
+      POSTGRES_PASSWORD: bluescout
+      POSTGRES_DB: bluescout
+    ports:
+      - "5432:5432"
+    volumes:
+      - bluescout_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bluescout"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      # Override to reach the in-network services (point at your remote DB in prod).
+      DATABASE_URL: postgresql://bluescout:bluescout@db:5432/bluescout?schema=public
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+volumes:
+  bluescout_pgdata:
