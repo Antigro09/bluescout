@@ -215,13 +215,21 @@ model EventTeam {
   dpr          Float?
   ccwm         Float?
 
-  // Statbotics EPA breakdown
+  // Statbotics EPA breakdown (this event)
   epaTotal    Float?
   epaAuto     Float?
   epaTeleop   Float?
   epaEndgame  Float?
   epaUnitless Float?
   winrate     Float?
+
+  // Season-cumulative (Statbotics team_year — incorporates the team's earlier events)
+  seasonEpa        Float?
+  seasonEpaAuto    Float?
+  seasonEpaTeleop  Float?
+  seasonEpaEndgame Float?
+  seasonWinrate    Float?
+  seasonMatches    Int?
 
   updatedAt DateTime @updatedAt
 

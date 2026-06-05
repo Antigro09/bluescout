@@ -31,7 +31,8 @@ export default async function AskPage() {
               To enable natural-language Q&amp;A, note summaries, and picklist
               suggestions, set <code className="rounded bg-muted px-1">AI_ENABLED=true</code>,
               choose <code className="rounded bg-muted px-1">AI_PROVIDER</code>{" "}
-              (anthropic / openai / ollama), and add the matching key in your{" "}
+              (anthropic / openai / deepseek / ollama), and add the matching key
+              in your{" "}
               <code className="rounded bg-muted px-1">.env</code>. No code changes
               needed.
             </p>

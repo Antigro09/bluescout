@@ -1,7 +1,11 @@
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { tba, teamNumberFromKey } from "@/lib/tba/client";
-import { statbotics, extractEpa } from "@/lib/statbotics/client";
+import {
+  statbotics,
+  extractEpa,
+  extractSeasonEpa,
+} from "@/lib/statbotics/client";
 import type { CompLevel } from "@/lib/generated/prisma/enums";
 
 const COMP: Record<string, CompLevel> = {

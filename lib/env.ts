@@ -30,9 +30,22 @@ export const env = {
   get aiEnabled(): boolean {
     return process.env.AI_ENABLED === "true";
   },
-  get aiProvider(): "anthropic" | "openai" | "ollama" | "none" {
+  get aiProvider():
+    | "anthropic"
+    | "openai"
+    | "deepseek"
+    | "nvidia"
+    | "ollama"
+    | "none" {
     const p = process.env.AI_PROVIDER;
-    if (p === "anthropic" || p === "openai" || p === "ollama") return p;
+    if (
+      p === "anthropic" ||
+      p === "openai" ||
+      p === "deepseek" ||
+      p === "nvidia" ||
+      p === "ollama"
+    )
+      return p;
     return "none";
   },
   get isProd(): boolean {

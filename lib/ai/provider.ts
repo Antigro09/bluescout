@@ -86,6 +86,80 @@ class OpenAIProvider implements AIProvider {
   }
 }
 
+// DeepSeek is OpenAI-compatible (same chat/completions shape + Bearer auth).
+class DeepSeekProvider implements AIProvider {
+  name = "deepseek";
+  async complete({ system, prompt, maxTokens = 1024 }: AICompleteOptions) {
+    const key = process.env.DEEPSEEK_API_KEY;
+    if (!key) throw new Error("DEEPSEEK_API_KEY is not set.");
+    const base = process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com";
+    const messages = [
+      ...(system ? [{ role: "system", content: system }] : []),
+      { role: "user", content: prompt },
+    ];
+    const res = await fetch(`${base}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model: process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
+        max_tokens: maxTokens,
+        stream: false,
+        messages,
+      }),
+    });
+    if (!res.ok) throw new Error(`DeepSeek API ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content ?? "";
+  }
+}
+
+// NVIDIA NIM (integrate.api.nvidia.com) — OpenAI-compatible, with reasoning.
+// We enable thinking for better strategy answers but return only the final
+// answer (the separate reasoning_content is discarded for the UI).
+class NvidiaProvider implements AIProvider {
+  name = "nvidia";
+  async complete({ system, prompt, maxTokens = 1024 }: AICompleteOptions) {
+    const key = process.env.NVIDIA_API_KEY;
+    if (!key) throw new Error("NVIDIA_API_KEY is not set.");
+    const base =
+      process.env.NVIDIA_BASE_URL ?? "https://integrate.api.nvidia.com/v1";
+    const thinking = process.env.NVIDIA_THINKING !== "false";
+    const messages = [
+      ...(system ? [{ role: "system", content: system }] : []),
+      { role: "user", content: prompt },
+    ];
+    const body: Record<string, unknown> = {
+      model: process.env.NVIDIA_MODEL ?? "nvidia/nemotron-3-ultra-550b-a55b",
+      messages,
+      temperature: 1,
+      top_p: 0.95,
+      max_tokens: Math.max(maxTokens, 8192),
+      stream: false,
+    };
+    if (thinking) {
+      body.reasoning_budget = 6144;
+      body.chat_template_kwargs = { enable_thinking: true };
+    }
+    const res = await fetch(`${base}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`NVIDIA API ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    const msg = data.choices?.[0]?.message;
+    const text: string = msg?.content || msg?.reasoning_content || "";
+    // Some reasoning models inline <think>…</think> before the answer.
+    return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  }
+}
+
 class OllamaProvider implements AIProvider {
   name = "ollama";
   async complete({ system, prompt }: AICompleteOptions) {
@@ -115,6 +189,10 @@ export function getAIProvider(): AIProvider {
       return new AnthropicProvider();
     case "openai":
       return new OpenAIProvider();
+    case "deepseek":
+      return new DeepSeekProvider();
+    case "nvidia":
+      return new NvidiaProvider();
     case "ollama":
       return new OllamaProvider();
     default:
