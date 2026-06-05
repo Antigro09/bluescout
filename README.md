@@ -8,6 +8,23 @@ Blue Alliance** and **Statbotics**.
 
 > Colors: team blue + yellow. Built to self-host next to your team's Postgres.
 
+## Features
+
+- **Accounts & roles** — email/password with scout-lead approval (Admin, Scout Lead, Scouter, Strategist, Viewer). First account becomes Admin.
+- **Event data** — one-click sync of teams, schedule, results, rankings, OPRs (The Blue Alliance) and EPA (Statbotics).
+- **Lead-assigned scouting** — assign each driver-station slot to a scouter for the whole event; live coverage grid.
+- **Match scouting** — fast, touch-first REBUILT forms (auto/teleop fuel, tower climb, defense, reliability, notes).
+- **Offline-first** — entries save on-device (IndexedDB) and auto-sync; a global indicator shows queued/offline state.
+- **QR hand-off** — no network at all? Generate an (animated, multi-frame) QR the lead scans to import reports.
+- **Pit & super scouting** — robot capability forms with photos, plus qualitative notes.
+- **Strategic dashboard** — teams ranked by blended **efficiency** + **reliability**; team radar/trends, compare, alliance simulator & match predictor.
+- **Real-time picklists** — collaborative drag-and-drop with presence, do-not-pick, comments, lock, and "seed from rankings".
+- **Extras** — scout-accuracy tracking (scouted vs actual), public read-only share links, and AI assists (off by default).
+
+### Demo login
+
+After `npm run db:seed`, sign in with **`lead@1086.test` / `bluecheese`** (Admin) to explore. The seed also adds scouters and realistic match data for the active event.
+
 ## Stack
 
 - **Next.js 16** (App Router, React 19, TypeScript) + custom **Socket.IO** server

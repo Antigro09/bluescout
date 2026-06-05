@@ -4,6 +4,7 @@ import { Wordmark } from "@/components/brand";
 import { MainNav } from "@/components/app/main-nav";
 import { UserMenu } from "@/components/app/user-menu";
 import { ThemeToggle } from "@/components/app/theme-toggle";
+import { SyncManager } from "@/components/scouting/sync-manager";
 
 export default async function AppLayout({
   children,
@@ -26,6 +27,7 @@ export default async function AppLayout({
         </div>
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
+      <SyncManager userId={user.id} />
     </div>
   );
 }

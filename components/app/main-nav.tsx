@@ -11,6 +11,7 @@ import {
   QrCode,
   Users,
   CalendarCog,
+  Target,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ const LINKS: NavLink[] = [
   { href: "/picklist", label: "Picklists", icon: ListOrdered, roles: STRAT },
   { href: "/lead/assignments", label: "Assign", icon: CalendarRange, roles: LEAD },
   { href: "/lead/intake", label: "Scan", icon: QrCode, roles: LEAD },
+  { href: "/lead/accuracy", label: "Accuracy", icon: Target, roles: LEAD },
   { href: "/admin/users", label: "People", icon: Users, roles: LEAD },
   { href: "/admin/events", label: "Events", icon: CalendarCog, roles: LEAD },
 ];

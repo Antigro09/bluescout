@@ -24,3 +24,10 @@ export interface PresenceUser {
   name: string;
   color: string;
 }
+
+/** Stable presence color derived from a user id. */
+export function colorForId(id: string): string {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360;
+  return `hsl(${h} 70% 55%)`;
+}
