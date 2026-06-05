@@ -12,16 +12,20 @@ type SortKey =
   | "reliability"
   | "avgContribution"
   | "epaTotal"
+  | "seasonEpa"
+  | "sosPercentile"
   | "climbSuccessRate"
   | "matchesScouted"
   | "rank";
 
-const COLUMNS: { key: SortKey; label: string; numeric?: boolean }[] = [
+const COLUMNS: { key: SortKey; label: string; title?: string }[] = [
   { key: "composite", label: "Composite" },
   { key: "efficiency", label: "Efficiency" },
   { key: "reliability", label: "Reliability" },
   { key: "avgContribution", label: "Avg pts" },
   { key: "epaTotal", label: "EPA" },
+  { key: "seasonEpa", label: "Season", title: "Season-long Statbotics EPA (all events this year)" },
+  { key: "sosPercentile", label: "SoS", title: "Strength of schedule — higher = harder field faced" },
   { key: "climbSuccessRate", label: "Climb%" },
   { key: "matchesScouted", label: "Matches" },
 ];
@@ -36,6 +40,14 @@ function tone(score: number): string {
   if (score >= 50) return "text-foreground";
   if (score >= 30) return "text-warning";
   return "text-muted-foreground";
+}
+
+// High SoS = tough schedule (stats are legit); low SoS = easy (caution: inflated).
+function sosTone(pct: number | null): string {
+  if (pct == null) return "text-muted-foreground";
+  if (pct >= 66) return "text-primary";
+  if (pct <= 33) return "text-warning";
+  return "text-foreground";
 }
 
 export function RankingsTable({ teams }: { teams: TeamMetrics[] }) {
@@ -55,7 +67,7 @@ export function RankingsTable({ teams }: { teams: TeamMetrics[] }) {
 
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-card">
-      <table className="w-full min-w-[46rem] text-sm">
+      <table className="w-full min-w-[54rem] text-sm">
         <thead>
           <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
             <th className="px-3 py-3 text-left font-medium">#</th>
@@ -64,6 +76,7 @@ export function RankingsTable({ teams }: { teams: TeamMetrics[] }) {
               <th key={c.key} className="px-3 py-3 text-right font-medium">
                 <button
                   onClick={() => toggleSort(c.key)}
+                  title={c.title}
                   className={cn(
                     "inline-flex items-center gap-1 hover:text-foreground",
                     sortKey === c.key && "text-foreground",
@@ -126,6 +139,22 @@ export function RankingsTable({ teams }: { teams: TeamMetrics[] }) {
               </td>
               <td className="px-3 py-2.5 text-right tabular-nums">
                 {fmt(t.epaTotal, 1)}
+              </td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                {fmt(t.seasonEpa, 0)}
+              </td>
+              <td
+                title={
+                  t.scheduleDeltaEpa != null
+                    ? `Δ ${t.scheduleDeltaEpa >= 0 ? "+" : ""}${t.scheduleDeltaEpa.toFixed(1)} pts schedule tailwind`
+                    : undefined
+                }
+                className={cn(
+                  "px-3 py-2.5 text-right tabular-nums",
+                  sosTone(t.sosPercentile),
+                )}
+              >
+                {t.sosPercentile != null ? `${Math.round(t.sosPercentile)}%` : "—"}
               </td>
               <td className="px-3 py-2.5 text-right tabular-nums">
                 {t.matchesScouted > 0

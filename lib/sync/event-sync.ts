@@ -7,6 +7,7 @@ import {
   extractSeasonEpa,
 } from "@/lib/statbotics/client";
 import type { CompLevel } from "@/lib/generated/prisma/enums";
+import { avg, stdDev } from "@/lib/utils";
 
 const COMP: Record<string, CompLevel> = {
   qm: "QM",
@@ -15,6 +16,38 @@ const COMP: Record<string, CompLevel> = {
   sf: "SF",
   f: "F",
 };
+
+/** Run async work over items with a bounded concurrency. */
+async function mapPool<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>,
+): Promise<void> {
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) {
+      await fn(items[i++]);
+    }
+  });
+  await Promise.all(workers);
+}
+
+/** Standard normal CDF (Abramowitz–Stegun approximation). */
+function normalCdf(z: number): number {
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989423 * Math.exp((-z * z) / 2);
+  let p =
+    d *
+    t *
+    (0.3193815 +
+      t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  if (z > 0) p = 1 - p;
+  return p;
+}
+
+function round1(v: number): number {
+  return Math.round(v * 10) / 10;
+}
 
 function jsonOrNull(value: unknown): Prisma.InputJsonValue | typeof Prisma.DbNull {
   return value == null ? Prisma.DbNull : (value as Prisma.InputJsonValue);
@@ -159,6 +192,13 @@ export async function syncEvent(eventKey: string): Promise<SyncResult> {
   await syncRankings(event.id, eventKey, warnings);
   await syncOprs(event.id, eventKey, warnings);
   await syncEpa(event.id, eventKey, warnings);
+  await syncSeasonEpa(
+    event.id,
+    evt.year,
+    teams.map((t) => t.team_number),
+    warnings,
+  );
+  await syncSos(event.id, warnings);
 
   return {
     event: eventKey,
@@ -183,6 +223,14 @@ interface EventTeamStats {
   epaEndgame?: number | null;
   epaUnitless?: number | null;
   winrate?: number | null;
+  seasonEpa?: number | null;
+  seasonEpaAuto?: number | null;
+  seasonEpaTeleop?: number | null;
+  seasonEpaEndgame?: number | null;
+  seasonWinrate?: number | null;
+  seasonMatches?: number | null;
+  scheduleDeltaEpa?: number | null;
+  sosPercentile?: number | null;
 }
 
 async function ensureEventTeam(
@@ -257,5 +305,91 @@ async function syncEpa(
     }
   } catch (e) {
     warnings.push(`Statbotics EPA: ${(e as Error).message}`);
+  }
+}
+
+/** Season-cumulative EPA/record (incorporates each team's earlier events). */
+async function syncSeasonEpa(
+  eventId: string,
+  year: number,
+  teamNumbers: number[],
+  warnings: string[],
+): Promise<void> {
+  let failures = 0;
+  await mapPool(teamNumbers, 6, async (num) => {
+    try {
+      const ty = await statbotics.teamYear(num, year);
+      await ensureEventTeam(eventId, num, extractSeasonEpa(ty));
+    } catch {
+      failures++;
+    }
+  });
+  if (failures) warnings.push(`Season EPA: ${failures} team(s) unavailable`);
+}
+
+/**
+ * Strength of schedule. For each team, using event EPAs:
+ *   ΔEPA = μ + 2·(avg partner EPA) − 3·(avg opponent EPA)
+ * (the schedule tailwind/headwind for an average team). The percentile is the
+ * normal CDF of −ΔEPA / (√0.5·σ/√n), where σ is the field EPA spread and n the
+ * team's match count. Following Statbotics, a HIGHER percentile = HARDER schedule
+ * (Δ stays the raw tailwind: positive Δ = easier path / possibly inflated stats).
+ */
+async function syncSos(eventId: string, warnings: string[]): Promise<void> {
+  try {
+    const ets = await prisma.eventTeam.findMany({
+      where: { eventId },
+      select: { teamNumber: true, epaTotal: true },
+    });
+    const epaByTeam = new Map<number, number>();
+    for (const e of ets) if (e.epaTotal != null) epaByTeam.set(e.teamNumber, e.epaTotal);
+    if (epaByTeam.size < 4) return;
+    const mu = avg([...epaByTeam.values()]);
+    const sigma = stdDev([...epaByTeam.values()]);
+    if (sigma === 0) return;
+
+    const matches = await prisma.match.findMany({
+      where: { eventId, compLevel: "QM" },
+      select: { teams: { select: { teamNumber: true, alliance: true } } },
+    });
+
+    const acc = new Map<
+      number,
+      { partners: number[]; opponents: number[]; n: number }
+    >();
+    for (const m of matches) {
+      const red = m.teams.filter((x) => x.alliance === "RED").map((x) => x.teamNumber);
+      const blue = m.teams.filter((x) => x.alliance === "BLUE").map((x) => x.teamNumber);
+      for (const [own, opp] of [
+        [red, blue],
+        [blue, red],
+      ] as const) {
+        for (const t of own) {
+          const a =
+            acc.get(t) ?? { partners: [] as number[], opponents: [] as number[], n: 0 };
+          for (const p of own)
+            if (p !== t && epaByTeam.has(p)) a.partners.push(epaByTeam.get(p)!);
+          for (const o of opp) if (epaByTeam.has(o)) a.opponents.push(epaByTeam.get(o)!);
+          a.n += 1;
+          acc.set(t, a);
+        }
+      }
+    }
+
+    for (const [team, a] of acc) {
+      if (a.n === 0) continue;
+      const pbar = a.partners.length ? avg(a.partners) : mu;
+      const obar = a.opponents.length ? avg(a.opponents) : mu;
+      const deltaEpa = mu + 2 * pbar - 3 * obar;
+      const sosStd = (Math.sqrt(0.5) * sigma) / Math.sqrt(a.n);
+      // Statbotics convention: higher percentile = harder schedule.
+      const pct = sosStd > 0 ? normalCdf(-deltaEpa / sosStd) * 100 : 50;
+      await ensureEventTeam(eventId, team, {
+        scheduleDeltaEpa: round1(deltaEpa),
+        sosPercentile: Math.round(pct),
+      });
+    }
+  } catch (e) {
+    warnings.push(`SoS: ${(e as Error).message}`);
   }
 }

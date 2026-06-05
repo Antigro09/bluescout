@@ -231,6 +231,10 @@ model EventTeam {
   seasonWinrate    Float?
   seasonMatches    Int?
 
+  // Strength of schedule (computed from the schedule + field EPAs)
+  scheduleDeltaEpa Float? // ΔEPA: schedule tailwind(+)/headwind(−) for an average team
+  sosPercentile    Float? // 0..100; higher = HARDER schedule (Statbotics convention)
+
   updatedAt DateTime @updatedAt
 
   @@unique([eventId, teamNumber])

@@ -23,6 +23,12 @@ export interface TeamMetrics {
   epaTeleop: number | null;
   epaEndgame: number | null;
   winrate: number | null;
+  // season-cumulative (all the team's events this year) + schedule
+  seasonEpa: number | null;
+  seasonWinrate: number | null;
+  seasonMatches: number | null;
+  scheduleDeltaEpa: number | null; // schedule tailwind(+)/headwind(−), points
+  sosPercentile: number | null; // 0..100; higher = harder schedule (Statbotics)
   // composite (0..100)
   efficiency: number;
   reliability: number;
@@ -134,6 +140,11 @@ export async function computeEventMetrics(
         epaTeleop: true,
         epaEndgame: true,
         winrate: true,
+        seasonEpa: true,
+        seasonWinrate: true,
+        seasonMatches: true,
+        scheduleDeltaEpa: true,
+        sosPercentile: true,
         team: { select: { nickname: true } },
       },
     }),
@@ -190,7 +201,8 @@ export async function computeEventMetrics(
           0.2 * (1 - agg.issueRate) +
           0.15 * confidence) *
         100
-      : (et.winrate ?? 0.5) * 70;
+      : // No scouting: lean on the more stable season win rate (bigger sample).
+        ((et.seasonWinrate ?? et.winrate) ?? 0.5) * 70;
 
     const composite = 0.6 * efficiency + 0.4 * reliability;
 
@@ -213,6 +225,11 @@ export async function computeEventMetrics(
       epaTeleop: et.epaTeleop,
       epaEndgame: et.epaEndgame,
       winrate: et.winrate,
+      seasonEpa: et.seasonEpa,
+      seasonWinrate: et.seasonWinrate,
+      seasonMatches: et.seasonMatches,
+      scheduleDeltaEpa: et.scheduleDeltaEpa,
+      sosPercentile: et.sosPercentile,
       efficiency: Math.round(efficiency),
       reliability: Math.round(reliability),
       composite: Math.round(composite),

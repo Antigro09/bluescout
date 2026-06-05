@@ -140,7 +140,8 @@ class NvidiaProvider implements AIProvider {
       stream: false,
     };
     if (thinking) {
-      body.reasoning_budget = 6144;
+      // Lower NVIDIA_REASONING_BUDGET for faster (shallower) answers.
+      body.reasoning_budget = Number(process.env.NVIDIA_REASONING_BUDGET ?? 4096);
       body.chat_template_kwargs = { enable_thinking: true };
     }
     const res = await fetch(`${base}/chat/completions`, {

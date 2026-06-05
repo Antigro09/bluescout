@@ -118,6 +118,51 @@ export default async function TeamDashboardPage({
         />
       </div>
 
+      <Card>
+        <CardContent className="grid grid-cols-2 gap-4 py-4 sm:grid-cols-4">
+          <Info
+            label="Strength of schedule"
+            value={
+              team.sosPercentile != null
+                ? `${Math.round(team.sosPercentile)}%ile`
+                : "—"
+            }
+            hint={
+              team.sosPercentile == null
+                ? "no data"
+                : team.sosPercentile >= 60
+                  ? "tough field"
+                  : team.sosPercentile <= 40
+                    ? "easy field"
+                    : "average"
+            }
+          />
+          <Info
+            label="Schedule Δ EPA"
+            value={
+              team.scheduleDeltaEpa != null
+                ? `${team.scheduleDeltaEpa >= 0 ? "+" : ""}${team.scheduleDeltaEpa.toFixed(1)}`
+                : "—"
+            }
+            hint="tailwind pts"
+          />
+          <Info
+            label="Season EPA"
+            value={fmt(team.seasonEpa, 0)}
+            hint={team.seasonMatches ? `${team.seasonMatches} matches` : "all events"}
+          />
+          <Info
+            label="Season win rate"
+            value={
+              team.seasonWinrate != null
+                ? `${Math.round(team.seasonWinrate * 100)}%`
+                : "—"
+            }
+            hint="this year"
+          />
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -311,6 +356,26 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between gap-2">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium">{value}</span>
+    </div>
+  );
+}
+
+function Info({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div className="text-lg font-bold tabular-nums">{value}</div>
+      {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
     </div>
   );
 }
